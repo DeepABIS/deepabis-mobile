@@ -38,21 +38,17 @@ class MainActivity : AppCompatActivity(), SpeciesFragment.OnListFragmentInteract
         false
     }
 
+    public lateinit var classifier: ImageClassifier
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        classifier = ImageClassifier(this)
+
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener)
-        val classifier = ImageClassifier(this)
+        supportFragmentManager.beginTransaction().replace(R.id.fragment_container, predictFragment).commit()
 
-        val bitmap = BitmapFactory.decodeStream(assets.open("apis_mellifera.jpg"))
-        val result = classifier.classifyFrame(bitmap)
-        val labels = Labels(this).labels
-
-        val top5 = result.slice(IntRange(0, endInclusive = 4))
-        for (proposal in top5) {
-            Log.d("INFO", "${labels[proposal.first]}: ${proposal.second}")
-        }
     }
 
 

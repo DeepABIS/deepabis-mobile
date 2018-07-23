@@ -1,5 +1,6 @@
 package de.flynamic.mobileabis
 
+import android.app.Activity.RESULT_OK
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -7,6 +8,19 @@ import android.support.v4.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import kotlinx.android.synthetic.main.fragment_predict.*
+import android.content.Intent
+import android.provider.MediaStore
+import android.graphics.Bitmap
+import android.util.Log
+import java.io.IOException
+import android.R.attr.bitmap
+import android.widget.*
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import de.flynamic.mobileabis.inference.ImageClassifier
+import de.flynamic.mobileabis.inference.Labels
+import kotlinx.android.synthetic.main.fragment_inference_result.view.*
 
 
 // TODO: Rename parameter arguments, choose names that match
@@ -29,18 +43,71 @@ class PredictFragment : Fragment() {
     private var param2: String? = null
     private var listener: OnFragmentInteractionListener? = null
 
+    private val PICK_IMAGE_REQUEST = 1
+
+    private lateinit var classifier: ImageClassifier
+    private lateinit var labels: MutableList<String>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
             param1 = it.getString(ARG_PARAM1)
             param2 = it.getString(ARG_PARAM2)
         }
+        classifier = (activity!! as MainActivity).classifier
+        labels = Labels(activity!!).labels
+    }
+
+    private fun choose() {
+        val intent = Intent()
+        // Show only images, no videos or anything else
+        intent.type = "image/*"
+        intent.action = Intent.ACTION_GET_CONTENT
+        // Always show the chooser (if there are multiple options available)
+        startActivityForResult(Intent.createChooser(intent, "Select Picture"), PICK_IMAGE_REQUEST)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == RESULT_OK && data != null && data.data != null) {
+
+            val uri = data.data
+
+            try {
+                val bitmap = MediaStore.Images.Media.getBitmap(activity?.contentResolver, uri)
+                Log.d("INFO", bitmap.toString())
+                val imageView = ImageView(activity)
+                imageView.setImageBitmap(bitmap)
+                imageView.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+
+                val sv = view!!.findViewById<LinearLayout>(R.id.view_results)
+                val container = LinearLayout(activity)
+                container.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                val inferenceResult = LayoutInflater.from(activity).inflate(R.layout.fragment_inference_result, container, false)
+                inferenceResult.imageView.setImageBitmap(bitmap)
+
+                val result = classifier.classifyFrame(bitmap)
+
+                val top5 = result.slice(IntRange(0, endInclusive = 4))
+                val top1 = labels[top5[0].first]
+                inferenceResult.text_top1.text = top1
+                inferenceResult.text_top1_prob.text = (top5[0].second * 100).toString() + "%"
+
+                sv.addView(inferenceResult)
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+
+        }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_predict, container, false)
+        val view = inflater.inflate(R.layout.fragment_predict, container, false)
+        view.findViewById<Button>(R.id.button_choose_image).setOnClickListener { choose() }
+        return view
     }
 
     // TODO: Rename method, update argument and hook method into UI event
