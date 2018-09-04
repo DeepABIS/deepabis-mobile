@@ -70,7 +70,8 @@ class ImageClassifier(activity: Activity) {
             return
         }
         imgData?.rewind()
-        bitmap.getPixels(intValues, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        val scaled = Bitmap.createScaledBitmap(bitmap, getImageSizeX(), getImageSizeY(), true)
+        scaled.getPixels(intValues, 0, scaled.width, 0, 0, scaled.width, scaled.height)
         // Convert the image to floating point.
         var pixel = 0
         val startTime = SystemClock.uptimeMillis()

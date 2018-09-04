@@ -8,16 +8,12 @@ import android.support.v4.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import kotlinx.android.synthetic.main.fragment_predict.*
 import android.content.Intent
 import android.provider.MediaStore
-import android.graphics.Bitmap
 import android.util.Log
 import java.io.IOException
-import android.R.attr.bitmap
 import android.widget.*
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import de.flynamic.mobileabis.inference.ImageClassifier
 import de.flynamic.mobileabis.inference.Labels
 import kotlinx.android.synthetic.main.fragment_inference_result.view.*
@@ -90,11 +86,15 @@ class PredictFragment : Fragment() {
                 val result = classifier.classifyFrame(bitmap)
 
                 val top5 = result.slice(IntRange(0, endInclusive = 4))
-                val top1 = labels[top5[0].first]
-                inferenceResult.text_top1.text = top1
-                inferenceResult.text_top1_prob.text = (top5[0].second * 100).toString() + "%"
 
-                sv.addView(inferenceResult)
+                val texts = listOf(inferenceResult.top1, inferenceResult.top2, inferenceResult.top3, inferenceResult.top4, inferenceResult.top5)
+                val probs = listOf(inferenceResult.top1_prob, inferenceResult.top2_prob, inferenceResult.top3_prob, inferenceResult.top4_prob, inferenceResult.top5_prob)
+
+                for (i in 0 until texts.size) {
+                    texts[i].text = labels[top5[i].first]
+                    probs[i].text = "%.5f%%".format(top5[i].second * 100)
+                }
+                sv.addView(inferenceResult, 0)
             } catch (e: IOException) {
                 e.printStackTrace()
             }
