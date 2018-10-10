@@ -1,6 +1,9 @@
 package de.flynamic.mobileabis
 
+import android.Manifest
 import android.app.Activity.RESULT_OK
+import android.app.AlertDialog
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -9,14 +12,26 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.content.Intent
+import android.graphics.Bitmap
 import android.provider.MediaStore
+import android.support.design.widget.Snackbar
 import android.util.Log
 import java.io.IOException
 import android.widget.*
 import android.widget.LinearLayout
+import com.facebook.drawee.backends.pipeline.Fresco
+import com.facebook.imagepipeline.common.ResizeOptions
+import com.facebook.imagepipeline.request.ImageRequestBuilder
+import com.karumi.dexter.Dexter
+import com.karumi.dexter.PermissionToken
+import com.karumi.dexter.listener.PermissionDeniedResponse
+import com.karumi.dexter.listener.PermissionGrantedResponse
+import com.karumi.dexter.listener.PermissionRequest
+import com.karumi.dexter.listener.single.PermissionListener
 import de.flynamic.mobileabis.inference.ImageClassifier
 import de.flynamic.mobileabis.inference.Labels
 import kotlinx.android.synthetic.main.fragment_inference_result.view.*
+import java.io.File
 
 
 // TODO: Rename parameter arguments, choose names that match
@@ -40,6 +55,7 @@ class PredictFragment : Fragment() {
     private var listener: OnFragmentInteractionListener? = null
 
     private val PICK_IMAGE_REQUEST = 1
+    private val TAKE_PHOTO_REQUEST = 2
 
     private lateinit var classifier: ImageClassifier
     private lateinit var labels: MutableList<String>
@@ -70,35 +86,42 @@ class PredictFragment : Fragment() {
 
             val uri = data.data
 
-            try {
-                val bitmap = MediaStore.Images.Media.getBitmap(activity?.contentResolver, uri)
-                Log.d("INFO", bitmap.toString())
-                val imageView = ImageView(activity)
-                imageView.setImageBitmap(bitmap)
-                imageView.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            predict(uri)
+        }
 
-                val sv = view!!.findViewById<LinearLayout>(R.id.view_results)
-                val container = LinearLayout(activity)
-                container.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                val inferenceResult = LayoutInflater.from(activity).inflate(R.layout.fragment_inference_result, container, false)
-                inferenceResult.imageView.setImageBitmap(bitmap)
+        if (resultCode == RESULT_OK && requestCode == TAKE_PHOTO_REQUEST) {
+            predict(mCurrentPhotoPath)
+        }
+    }
 
-                val result = classifier.classifyFrame(bitmap)
+    private fun predict(uri: Uri?) {
+        try {
+            val bitmap = MediaStore.Images.Media.getBitmap(activity?.contentResolver, uri)
+            Log.d("INFO", bitmap.toString())
+            val imageView = ImageView(activity)
+            imageView.setImageBitmap(bitmap)
+            imageView.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
 
-                val top5 = result.slice(IntRange(0, endInclusive = 4))
+            val sv = view!!.findViewById<LinearLayout>(R.id.view_results)
+            val container = LinearLayout(activity)
+            container.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            val inferenceResult = LayoutInflater.from(activity).inflate(R.layout.fragment_inference_result, container, false)
+            inferenceResult.imageView.setImageBitmap(bitmap)
 
-                val texts = listOf(inferenceResult.top1, inferenceResult.top2, inferenceResult.top3, inferenceResult.top4, inferenceResult.top5)
-                val probs = listOf(inferenceResult.top1_prob, inferenceResult.top2_prob, inferenceResult.top3_prob, inferenceResult.top4_prob, inferenceResult.top5_prob)
+            val result = classifier.classifyFrame(bitmap)
 
-                for (i in 0 until texts.size) {
-                    texts[i].text = labels[top5[i].first]
-                    probs[i].text = "%.5f%%".format(top5[i].second * 100)
-                }
-                sv.addView(inferenceResult, 0)
-            } catch (e: IOException) {
-                e.printStackTrace()
+            val top5 = result.slice(IntRange(0, endInclusive = 4))
+
+            val texts = listOf(inferenceResult.top1, inferenceResult.top2, inferenceResult.top3, inferenceResult.top4, inferenceResult.top5)
+            val probs = listOf(inferenceResult.top1_prob, inferenceResult.top2_prob, inferenceResult.top3_prob, inferenceResult.top4_prob, inferenceResult.top5_prob)
+
+            for (i in 0 until texts.size) {
+                texts[i].text = labels[top5[i].first]
+                probs[i].text = "%.5f%%".format(top5[i].second * 100)
             }
-
+            sv.addView(inferenceResult, 0)
+        } catch (e: IOException) {
+            e.printStackTrace()
         }
     }
 
@@ -107,7 +130,70 @@ class PredictFragment : Fragment() {
         // Inflate the layout for this fragment
         val view = inflater.inflate(R.layout.fragment_predict, container, false)
         view.findViewById<Button>(R.id.button_choose_image).setOnClickListener { choose() }
+        view.findViewById<Button>(R.id.button_take_photo).setOnClickListener { validatePermissions() }
         return view
+    }
+
+    private fun validatePermissions() {
+        Dexter.withActivity(activity)
+                .withPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                .withListener(object: PermissionListener {
+                    override fun onPermissionGranted(
+                            response: PermissionGrantedResponse?) {
+                        launchCamera()
+                    }
+
+                    override fun onPermissionRationaleShouldBeShown(
+                            permission: PermissionRequest?,
+                            token: PermissionToken?) {
+                        AlertDialog.Builder(context)
+                                .setTitle(
+                                        "title")
+                                .setMessage(
+                                        "message")
+                                .setNegativeButton(
+                                        android.R.string.cancel
+                                ) { dialog, _ ->
+                                    dialog.dismiss()
+                                    token?.cancelPermissionRequest()
+                                }
+                                .setPositiveButton(android.R.string.ok
+                                ) { dialog, _ ->
+                                    dialog.dismiss()
+                                    token?.continuePermissionRequest()
+                                }
+                                .setOnDismissListener {
+                                    token?.cancelPermissionRequest() }
+                                .show()
+                    }
+
+                    override fun onPermissionDenied(
+                            response: PermissionDeniedResponse?) {
+                        Snackbar.make(view!!,
+                                "permission denied",
+                                Snackbar.LENGTH_LONG)
+                                .show()
+                    }
+                })
+                .check()
+    }
+
+    private lateinit var mCurrentPhotoPath: Uri
+
+    private fun launchCamera() {
+        val values = ContentValues(1)
+        values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpg")
+        val fileUri = activity!!.contentResolver
+                .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        values)
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if(intent.resolveActivity(activity!!.packageManager) != null) {
+            mCurrentPhotoPath = fileUri!!
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, fileUri)
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            startActivityForResult(intent, TAKE_PHOTO_REQUEST)
+        }
     }
 
     // TODO: Rename method, update argument and hook method into UI event

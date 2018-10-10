@@ -3,6 +3,7 @@
     <string name="title_predict">Identify</string>
     <string name="title_species">Species</string>
     <string name="button_choose">Choose Image</string>
+    <string name="button_photo">Take Photo</string>
 
     <string name="text_prob">h %1$.2f ok</string>
 
