@@ -4,15 +4,15 @@ import android.os.SystemClock
 import android.graphics.Bitmap
 import android.util.Log
 import android.app.Activity
+import android.content.res.AssetManager
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
-class ImageClassifier(activity: Activity) {
+class ImageClassifier(assetManager: AssetManager) {
     private val TAG = "INFO"
     private lateinit var tflite: Interpreter
     protected var imgData: ByteBuffer? = null
@@ -25,7 +25,7 @@ class ImageClassifier(activity: Activity) {
     val IMAGE_STD = 53f
 
     init {
-        tflite = Interpreter(loadModelFile(activity))
+        tflite = Interpreter(loadModelFile(assetManager))
         imgData = ByteBuffer.allocateDirect(
                 DIM_BATCH_SIZE
                         * getImageSizeX()
@@ -95,8 +95,8 @@ class ImageClassifier(activity: Activity) {
 
     /** Memory-map the model file in Assets.  */
     @Throws(IOException::class)
-    private fun loadModelFile(activity: Activity): MappedByteBuffer {
-        val fileDescriptor = activity.assets.openFd("beenet_17.tflite")
+    private fun loadModelFile(assetManager: AssetManager): ByteBuffer {
+        val fileDescriptor = assetManager.openFd("beenet_17.tflite")
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
         val fileChannel = inputStream.channel
         val startOffset = fileDescriptor.startOffset

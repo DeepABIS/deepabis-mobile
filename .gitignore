@@ -67,3 +67,6 @@ fastlane/readme.md
 
 # macOS
 .DS_Store
+
+# Test assets
+app/src/main/assets/test

@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity(), SpeciesFragment.OnListFragmentInteract
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        classifier = ImageClassifier(this)
+        classifier = ImageClassifier(assets)
 
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener)
         supportFragmentManager.beginTransaction().replace(R.id.fragment_container, predictFragment).commit()
